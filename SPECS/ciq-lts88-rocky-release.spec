@@ -21,7 +21,7 @@
 %define distro_code  Green Obsidian
 %define major        8
 %define minor        8
-%define rocky_rel    5%{?rllh:.%{rllh}}%{!?rllh:.0}
+%define rocky_rel    6%{?rllh:.%{rllh}}%{!?rllh:.0}
 %define upstream_rel %{major}.%{minor}-0.8
 %define rpm_license  BSD-3-Clause
 %define dist         .el%{major}
@@ -30,7 +30,7 @@
 %define debug_url    https://debuginfod.rockylinux.org/
 %define dist_vendor  RESF
 
-%define contentdir   pub/rocky
+%define contentdir   vault/rocky
 %define sigcontent   pub/sig
 %define rlosid       rocky
 
@@ -131,6 +131,7 @@ Conflicts: ciq-rocky86-repos
 # GPG Keys (100-199)
 Source101:      RPM-GPG-KEY-rockyofficial
 Source102:      RPM-GPG-KEY-rockytesting
+Source110:      https://ciq.com/keys/rpm-gpg-key-ciq
 
 # Release Sources (200-499)
 Source200:      EULA
@@ -162,6 +163,7 @@ Source1222:     Rocky-Sources.repo
 Source1223:     Rocky-Devel.repo
 Source1226:     Rocky-Plus.repo
 Source1300:     rocky.1.gz
+Source1350:     lts-cloud.repo
 
 # rocky secureboot certs placeholder (1400-1499)
 Source1400:     rockydup1.x509
@@ -178,6 +180,14 @@ Source1406:     rocky-shim.cer
 
 # CIQ 8.8 specific: We conflict with the original rocky-repos, we want to force the 8.8 vault to be used
 %package     -n ciq-rocky88-repos%{?rltype}
+Summary:        %{distro_name} Package Repositories
+License:        %{rpm_license}
+Provides:       system-repos = %{version}-%{release}
+Provides:       rocky-repos(%{major}) = %{full_release_version}
+Requires:       system-release = %{version}-%{release}
+Requires:       rocky-gpg-keys%{?rltype}
+Conflicts:      %{name} < 8.0
+
 Provides: ciq-rocky88-repos(%{major}) = %{upstream_rel}
 Conflicts: rocky-repos
 Obsoletes: rocky-repos
@@ -188,16 +198,39 @@ Obsoletes: ciq-rocky-repos
 Conflicts: ciq-rocky86-repos
 Obsoletes: ciq-rocky86-repos
 
-Summary:        %{distro_name} Package Repositories
+Conflicts: ciq-rocky88-cloud-repos%{?rltype}
+
+%description -n ciq-rocky88-repos%{?rltype}
+%{distro_name} package repository files for yum/dnf  - CIQ LTS 8.8
+
+
+%package -n ciq-rocky88-cloud-repos%{?rltype}
+Summary:        Cloud package repositories for %{distro_name}
 License:        %{rpm_license}
 Provides:       system-repos = %{version}-%{release}
 Provides:       rocky-repos(%{major}) = %{full_release_version}
 Requires:       system-release = %{version}-%{release}
 Requires:       rocky-gpg-keys%{?rltype}
+Requires:       python3-rlc-cloud-repos
 Conflicts:      %{name} < 8.0
 
-%description -n ciq-rocky88-repos%{?rltype}
-%{distro_name} package repository files for yum/dnf  - CIQ LTS 8.8
+Provides:       ciq-rocky88-repos(%{major}) = %{upstream_rel}
+Conflicts:      rocky-repos
+
+Conflicts:      ciq-rocky-repos
+Conflicts:      ciq-rocky86-repos
+
+Conflicts:      ciq-rocky88-repos%{?rltype}
+
+%description -n ciq-rocky88-cloud-repos%{?rltype}
+%{distro_name} package repository files for cloud-based images for
+yum/dnf. This package contains the repository configurations for Rocky
+Linux repositories specifically designed for cloud deployments. It
+should not be used for bare metal or virtual machine
+installations. Specifically, this package will definitely break
+upgrades and installations if your system is not running in a cloud
+environment.
+
 
 %package     -n rocky-gpg-keys%{?rltype}
 Summary:        Rocky RPM GPG Keys
@@ -380,11 +413,13 @@ install -p -m 0644 %{SOURCE1221} %{buildroot}%{_sysconfdir}/yum.repos.d/
 install -p -m 0644 %{SOURCE1222} %{buildroot}%{_sysconfdir}/yum.repos.d/
 install -p -m 0644 %{SOURCE1223} %{buildroot}%{_sysconfdir}/yum.repos.d/
 install -p -m 0644 %{SOURCE1226} %{buildroot}%{_sysconfdir}/yum.repos.d/
+install -p -m 0644 %{SOURCE1350} %{buildroot}%{_sysconfdir}/yum.repos.d/
 
 # dnf stuff
 install -d -m 0755 %{buildroot}%{_sysconfdir}/dnf/vars
 echo "%{contentdir}" > %{buildroot}%{_sysconfdir}/dnf/vars/contentdir
 echo "%{sigcontent}" > %{buildroot}%{_sysconfdir}/dnf/vars/sigcontentdir
+echo "%{full_release_version}" > %{buildroot}%{_sysconfdir}/dnf/vars/releasever
 echo "%{?rltype}" > %{buildroot}%{_sysconfdir}/dnf/vars/rltype
 echo "%{major}-stream" > %{buildroot}%{_sysconfdir}/dnf/vars/stream
 
@@ -392,6 +427,7 @@ echo "%{major}-stream" > %{buildroot}%{_sysconfdir}/dnf/vars/stream
 install -d -m 0755 %{buildroot}%{_sysconfdir}/pki/rpm-gpg
 install -p -m 0644 %{SOURCE101} %{buildroot}%{_sysconfdir}/pki/rpm-gpg/
 install -p -m 0644 %{SOURCE102} %{buildroot}%{_sysconfdir}/pki/rpm-gpg/
+install -p -m 0644 %{SOURCE110} %{buildroot}%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-CIQ
 # end dnf repo section
 ################################################################################
 
@@ -419,6 +455,16 @@ install -p -m 0644 %{SOURCE102} %{buildroot}%{_sysconfdir}/pki/rpm-gpg/
 %config(noreplace) %{_sysconfdir}/yum.repos.d/Rocky-*.repo
 %config(noreplace) %{_sysconfdir}/dnf/vars/contentdir
 %config(noreplace) %{_sysconfdir}/dnf/vars/sigcontentdir
+%config(noreplace) %{_sysconfdir}/dnf/vars/releasever
+%config(noreplace) %{_sysconfdir}/dnf/vars/rltype
+%config(noreplace) %{_sysconfdir}/dnf/vars/stream
+
+%files -n ciq-rocky88-cloud-repos%{?rltype}
+%license LICENSE
+%config(noreplace) %{_sysconfdir}/yum.repos.d/lts-cloud.repo
+%config(noreplace) %{_sysconfdir}/dnf/vars/contentdir
+%config(noreplace) %{_sysconfdir}/dnf/vars/sigcontentdir
+%config(noreplace) %{_sysconfdir}/dnf/vars/releasever
 %config(noreplace) %{_sysconfdir}/dnf/vars/rltype
 %config(noreplace) %{_sysconfdir}/dnf/vars/stream
 
@@ -433,6 +479,12 @@ install -p -m 0644 %{SOURCE102} %{buildroot}%{_sysconfdir}/pki/rpm-gpg/
 %{_datadir}/pki/sb-certs/*
 
 %changelog
+* Fri May 02 2025 Trinity Quirk <tquirk@ciq.com> - 8.8-6.0
+- Add CIQ signing key
+- Use Rocky vault repo for base packages
+- Add ciq-rocky88-cloud-repos subpackage
+- Fix double-obsolete error when upgrading from stock Rocky
+
 * Tue Dec 05 2023 Matt Hink <mhink@ciq.com> - 8.8-5.0
 - Fix missing section
 
