@@ -21,7 +21,7 @@
 %define distro_code  Green Obsidian
 %define major        8
 %define minor        8
-%define rocky_rel    6%{?rllh:.%{rllh}}%{!?rllh:.0}
+%define rocky_rel    7%{?rllh:.%{rllh}}%{!?rllh:.0}
 %define upstream_rel %{major}.%{minor}-0.8
 %define rpm_license  BSD-3-Clause
 %define dist         .el%{major}
@@ -82,6 +82,9 @@
 %ifarch ppc64le
 %define tuned_profile :server
 %endif
+
+%define cloudcontentdir  /public/files
+%define product          /lts-%{full_release_version}
 
 # Avoids a weird anaconda problem
 %global __requires_exclude_from %{_libexecdir}
@@ -422,6 +425,8 @@ echo "%{sigcontent}" > %{buildroot}%{_sysconfdir}/dnf/vars/sigcontentdir
 echo "%{full_release_version}" > %{buildroot}%{_sysconfdir}/dnf/vars/releasever
 echo "%{?rltype}" > %{buildroot}%{_sysconfdir}/dnf/vars/rltype
 echo "%{major}-stream" > %{buildroot}%{_sysconfdir}/dnf/vars/stream
+echo "%{cloudcontentdir}" > %{buildroot}%{_sysconfdir}/dnf/vars/cloudcontentdir
+echo "%{product}" > %{buildroot}%{_sysconfdir}/dnf/vars/product.cloud
 
 # Copy out GPG keys
 install -d -m 0755 %{buildroot}%{_sysconfdir}/pki/rpm-gpg
@@ -467,6 +472,8 @@ install -p -m 0644 %{SOURCE110} %{buildroot}%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-K
 %config(noreplace) %{_sysconfdir}/dnf/vars/releasever
 %config(noreplace) %{_sysconfdir}/dnf/vars/rltype
 %config(noreplace) %{_sysconfdir}/dnf/vars/stream
+%config(noreplace) %{_sysconfdir}/dnf/vars/cloudcontentdir
+%config(noreplace) %{_sysconfdir}/dnf/vars/product.cloud
 
 %files -n rocky-gpg-keys%{?rltype}
 %{_sysconfdir}/pki/rpm-gpg/
@@ -478,7 +485,32 @@ install -p -m 0644 %{SOURCE110} %{buildroot}%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-K
 %{_sysconfdir}/pki/sb-certs/*
 %{_datadir}/pki/sb-certs/*
 
+# Other distros may have their own specific cloud mirrors, which will
+# get symlinked into place in this same way, and should take
+# precedence over the base cloud repos from this package set.  If
+# there exists a file or non-dangling symlink, this package won't
+# supersede it.
+%posttrans -n ciq-rocky88-cloud-repos%{?rltype}
+# only run on install, not upgrade
+if [ "$1" = "1" ]; then
+    if [ ! -f %{_sysconfdir}/dnf/vars/product ]; then
+        ln -fs %{_sysconfdir}/dnf/vars/product.cloud %{_sysconfdir}/dnf/vars/product
+    fi
+fi
+
+%preun -n ciq-rocky88-cloud-repos%{?rltype}
+# only run on uninstall, not upgrade
+if [ "$1" = "0" ]; then
+    target=$(readlink %{_sysconfdir}/dnf/vars/product)
+    if [ "$target" = "%{_sysconfdir}/dnf/vars/product.cloud" ]; then
+        rm -f %{_sysconfdir}/dnf/vars/product
+    fi
+fi
+
 %changelog
+* Wed Jun 25 2025 Trinity Quirk <tquirk@ciq.com> - 8.8-7.0
+- Add support for AWS cloud mirroring
+
 * Fri May 02 2025 Trinity Quirk <tquirk@ciq.com> - 8.8-6.0
 - Add CIQ signing key
 - Use Rocky vault repo for base packages
